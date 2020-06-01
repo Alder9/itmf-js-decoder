@@ -63,33 +63,21 @@ function readORBXFile(f) {
                 }
 
                 var new_s = s;
-                console.log(new_s);
-                console.log('additional bytes: ' + num_add_bytes);
+                // console.log(new_s);
+                // console.log('additional bytes: ' + num_add_bytes);
 
                 // appending any subsequent bytes
                 for(var j = 0; j < num_add_bytes; j++) {
                     var to_add = stringToBinary(buffer[i + j + 1]);
-                    console.log('adding: ' + to_add);
+                    // console.log('adding: ' + to_add);
                     new_s = new_s.concat(to_add);
                 }
+                console.log(new_s);
 
-                console.log('after concat ' + new_s);
-
-                
                 i += (1 + num_add_bytes);
-                
-                // console.log(s[0]);
             }
 
             console.log('done reading ' + (i + 1) + ' bytes');
-            // Assuming unencrypted
-            // var headerBuff = buffer.slice(0, 8);
-            // console.log(headerBuff);
-
-            // var headerView = new Uint8Array(headerBuff);
-            // console.log(headerView);
-
-            // readHeader(headerView);
         }
 
         reader.readAsBinaryString(f);
