@@ -43,10 +43,28 @@ function readORBXFile(f) {
         reader.onload = function(e) {
             var contents = e.target.result;
             var buffer = reader.result;
+            // console.log(buffer);
 
             // Reads one byte at a time
             for (var i = 0; i < buffer.length; i++) {
-                console.log(stringToBinary(buffer[i]));
+                var s = stringToBinary(buffer[i]);
+                console.log(s);
+                
+                var num_add_bytes = 0; // since it is variable we need to check how many bytes are 
+
+
+                // Checking number of subsequent bytes
+                for(var j = 0; j < s.length; j++) {
+                    if(s[j] == 0) {
+                        break;
+                    }
+
+                    num_add_bytes += 1;
+                }
+                console.log('additional bytes: ' + num_add_bytes);
+
+                i += (num_add_bytes - 1);
+                // console.log(s[0]);
             }
             // Assuming unencrypted
             // var headerBuff = buffer.slice(0, 8);
