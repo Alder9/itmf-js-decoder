@@ -3,6 +3,7 @@ fileSelector.addEventListener('change', (event) => {
     const fileList = event.target.files;
     console.log(fileList);
     readORBXFile(fileList[0]);
+    testReadORBXFile(fileList[0]);
 });
 
 function BMLElementDisplay() {
@@ -76,6 +77,25 @@ function calculateTotalBytes(first_byte) {
     return num_add_bytes;
 }
 
+function testReadORBXFile(f) {
+    if(f) {
+        const reader = new FileReader();
+
+        reader.onload = function(e) {
+            var buffer = reader.result;
+
+            // console.log(buffer);
+            var view = new Uint32Array(buffer, buffer.length - 2, 2);
+            console.log(view);
+        }
+
+        reader.readAsArrayBuffer(f);
+
+    } else {
+        alert("Failed to load file");
+    }
+}
+
 function readORBXFile(f) {
     if(f) {
         const reader = new FileReader();
@@ -87,14 +107,17 @@ function readORBXFile(f) {
 
             // Reads one byte at a time
             var i = 0;
+
             console.log('reading ' + buffer.length + ' bytes');
             var BMLdata = [];
-            while (i != (buffer.length - 1)) {
+            while (i < (buffer.length - 8)) {
                 var s = stringToBinary(buffer[i]);
                 
                 var num_add_bytes = calculateTotalBytes(s);
-
                 var new_s = s;
+                console.log('new_s ' + new_s);
+                // console.log(num_add_bytes);
+
                 // appending any subsequent bytes
                 for(var j = 0; j < num_add_bytes; j++) {
                     var to_add = stringToBinary(buffer[i + j + 1]);
@@ -103,7 +126,6 @@ function readORBXFile(f) {
                 }
 
                 i += num_add_bytes;
-                console.log('new_s ' + new_s);
 
                 // Need to read bytes as follows - first as tag encoding
                 // Once tag encoding is decoded into id/type
@@ -112,11 +134,11 @@ function readORBXFile(f) {
                 
                 switch(decoded_tag[0]) {
                     case 'CLOSE': // Close shouldn't be ever entered - this will notify when Object is closed
-                        console.log('Close');
+                        console.log('}');
                                                 
                         break;
                     case 'OBJECT':
-                        console.log('Object');
+                        console.log('{');
 
                         // Loop while the tag does not say close
                         
@@ -125,14 +147,14 @@ function readORBXFile(f) {
                         console.log('integer');
                         var str_int = stringToBinary(buffer[i + 1]);
                         var int_byte_size = calculateTotalBytes(str_int);
-                        
                         i += 1;
                         
                         for(var j = 0; j < int_byte_size; j++) {
-                            var to_add = stringToBinary(buffer[i + j + 1]);
+                            var to_add = stringToBinary(buffer[i + j]);
                             // console.log('adding: ' + to_add);
                             str_int = str_int.concat(to_add);
                         }
+                        // console.log(str_int)
 
                         var int = binaryToVSIE(str_int);
                         console.log(int);
@@ -171,9 +193,23 @@ function readORBXFile(f) {
                         break;
                     case 'SINGLE':
                         console.log('single');
+
+                        var single = '';
+
+                        for(var j = 0; j < 3; j++) {
+                            var to_add = stringToBinary(buffer[i + j + 1]);
+
+                            single = single.concat(to_add);
+                        }
+
+                        console.log(single);
+
+                        i += 3;
                         break;
                     case 'DOUBLE':
                         console.log('double');
+
+                        i += 5;
                         break;
                     case 'BLOB':
                         console.log('blob');
@@ -211,7 +247,7 @@ function readORBXFile(f) {
                 // or StreamsAtEnd (StreamHeader, Index, and Directory first followed by chunks of stream logical units, no footer)
             }
 
-            console.log('done reading ' + (i + 1) + ' bytes');
+            console.log('done reading');
         }
 
         reader.readAsBinaryString(f);
@@ -220,9 +256,7 @@ function readORBXFile(f) {
     }
 }
 
-```
-Takes a tag and returns the BML type and id
-```
+// Takes a tag and returns the BML type and id
 function decodeTag(tag) {
     var entries = Object.entries(BMLElementType).reverse();
     for(const entry of entries) {
