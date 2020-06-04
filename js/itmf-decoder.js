@@ -3,11 +3,11 @@ fileSelector.addEventListener('change', (event) => {
     const fileList = event.target.files;
     console.log(fileList);
     readORBXFile(fileList[0]);
-    testReadORBXFile(fileList[0]);
+    // testReadORBXFile(fileList[0]);
 });
 
 function BMLElementDisplay() {
-    print(`${this.type}(${this.id}) ${this.value}`);
+    console.log(`${this.type}(${this.id}) ${this.value}`);
 }
 
 function BMLElement(type, id, value) {
@@ -16,6 +16,10 @@ function BMLElement(type, id, value) {
     this.value = value;
 
     this.display = BMLElementDisplay;
+}
+
+function ITMFHeader() {
+
 }
 
 const BMLElementType = {
@@ -27,6 +31,15 @@ const BMLElementType = {
     DOUBLE: 5,
     STRING: 6,
     BLOB: 7
+}
+
+const Flags = {
+    STREAMSATSTART: 1,
+    STREAMSATEND: 2,
+    INDEX: 4,
+    DIRECTORY: 8,
+    PROPERTIES: 16,
+    SIGNED: 32
 }
 
 // https://stackoverflow.com/questions/53247588/converting-a-string-into-binary-and-back
@@ -96,6 +109,180 @@ function testReadORBXFile(f) {
     }
 }
 
+function createBMLElement(byte, buffer, filepos) {
+    var num_add_bytes = calculateTotalBytes(byte);
+    var all_bytes = byte;
+    var value;
+
+    // appending any subsequent bytes
+    for(var j = 0; j < num_add_bytes; j++) {
+        var to_add = stringToBinary(buffer[filepos + j + 1]);
+        // console.log('adding: ' + to_add);
+        all_bytes = all_bytes.concat(to_add);
+    }
+
+    filepos += num_add_bytes;
+
+    // Need to read bytes as follows - first as tag encoding
+    // Once tag encoding is decoded into id/type
+    // Get the value depending on the id/type
+    var decoded_tag = decodeTag(all_bytes);
+    
+    switch(decoded_tag[0]) {
+        case 'CLOSE': // Close shouldn't be ever entered - this will notify when Object is closed
+            console.log('}');
+                                    
+            break;
+        case 'OBJECT':
+            console.log('{');
+
+            // Loop while the tag does not say close
+            
+            break;
+        case 'INTEGER':
+            console.log('integer');
+            var str_int = stringToBinary(buffer[filepos + 1]);
+            var int_byte_size = calculateTotalBytes(str_int);
+            filepos += 1;
+            
+            for(var j = 0; j < int_byte_size; j++) {
+                var to_add = stringToBinary(buffer[filepos + j]);
+                // console.log('adding: ' + to_add);
+                str_int = str_int.concat(to_add);
+            }
+            // console.log(str_int)
+
+            value = binaryToVSIE(str_int);
+            console.log(value);
+
+            filepos += int_byte_size;
+
+            break;
+        case 'LONG':
+            console.log('long');
+            var str_long = stringToBinary(buffer[filepos + 1]);
+            var long_byte_size = calculateTotalBytes(str_long);
+            
+            filepos += 1;
+
+            for(var j = 0; j < long_byte_size; j++) {
+                var to_add = stringToBinary(buffer[filepos + j + 1]);
+                // console.log('adding: ' + to_add);
+                str_long = str_long.concat(to_add);
+            }
+
+            value = binaryToVSIE(str_long);
+            console.log(value);
+
+            filepos += long_byte_size;
+
+            break;
+        case 'STRING':
+            console.log('string');
+            var str_len = stringToBinary(buffer[filepos + 1]);
+            var l = binaryToVUIE(str_len);
+            filepos += 1;
+            value = buffer.slice(filepos + 1, filepos + l + 1);
+            console.log(value);
+            filepos += l;
+
+            break;
+        case 'SINGLE':
+            console.log('single');
+
+            var single = '';
+
+            for(var j = 0; j < 3; j++) {
+                var to_add = stringToBinary(buffer[filepos + j + 1]);
+
+                single = single.concat(to_add);
+            }
+
+            console.log(single);
+
+            filepos += 3;
+            break;
+        case 'DOUBLE':
+            console.log('double');
+
+            filepos += 5;
+            break;
+        case 'BLOB':
+            console.log('blob');
+
+            var blob_len = stringToBinary(buffer[filepos + 1]);
+            filepos += 1;
+            var blob_len_num_bytes = calculateTotalBytes(blob_len);
+            for(var j = 0; j < blob_len_num_bytes; j++) {
+                var to_add = stringToBinary(buffer[filepos + j + 1]);
+                // console.log('adding: ' + to_add);
+                blob_len = blob_len.concat(to_add);
+            }
+
+            var l = binaryToVUIE(blob_len);
+            console.log(l);
+            filepos += blob_len_num_bytes;
+            value = buffer.slice(filepos + 1, filepos + l + 1);
+            console.log(value);
+            filepos += l;
+
+            break;
+    }
+
+    var bml_elem = new BMLElement(decoded_tag[0], decoded_tag[1], value);
+    filepos += 1;
+
+    return {bml_elem: bml_elem, filepos: filepos};
+}
+
+function readHeader(buffer, filepos) {
+    var header = [];
+
+    var s = stringToBinary(buffer[filepos]);
+    var ox_values = createBMLElement(s, buffer, filepos);
+    var ox = ox_values.bml_elem;
+    filepos = ox_values.filepos;
+    header.push(ox);
+
+    s = stringToBinary(buffer[filepos]);
+    var version_values = createBMLElement(s, buffer, filepos);
+    var version = version_values.bml_elem;
+    filepos = version_values.filepos;
+    header.push(version);
+
+    s = stringToBinary(buffer[filepos]);
+    var flag_values = createBMLElement(s, buffer, filepos);
+    var flags = flag_values.bml_elem;
+    filepos = flag_values.filepos;
+    header.push(flags);
+
+    for(var i = 0; i < header.length; i++) {
+        header[i].display();
+    }
+
+    return {header: header, filepos: filepos};
+}
+
+function readFlags(flags) {
+    var entries = Object.entries(Flags);
+    var format_flags = []
+    for(const entry of entries) {
+        var f = entry[1] & flags;
+        if(f === entry[1]) {
+            format_flags.push(entry[0]);
+        }
+    }  
+
+    return format_flags;
+}
+
+function readProperties(buffer, filepos) {
+    var properties = [];
+    
+
+    return properties;
+}
+
 function readORBXFile(f) {
     if(f) {
         const reader = new FileReader();
@@ -103,148 +290,27 @@ function readORBXFile(f) {
         reader.onload = function(e) {
             var contents = e.target.result;
             var buffer = reader.result;
-            // console.log(buffer);
 
             // Reads one byte at a time
             var i = 0;
 
             console.log('reading ' + buffer.length + ' bytes');
-            var BMLdata = [];
-            while (i < (buffer.length - 8)) {
-                var s = stringToBinary(buffer[i]);
-                
-                var num_add_bytes = calculateTotalBytes(s);
-                var new_s = s;
-                console.log('new_s ' + new_s);
-                // console.log(num_add_bytes);
+            
+            // Read Header
+            var s = stringToBinary(buffer[i]); // first byte
 
-                // appending any subsequent bytes
-                for(var j = 0; j < num_add_bytes; j++) {
-                    var to_add = stringToBinary(buffer[i + j + 1]);
-                    // console.log('adding: ' + to_add);
-                    new_s = new_s.concat(to_add);
-                }
+            var header_vals = readHeader(buffer, i);
+            var header = header_vals.header;
+            i = header_vals.filepos;
 
-                i += num_add_bytes;
+            // Check flags to see which logical units are present
+            var format = readFlags(header[2].value);
+            console.log(format);
 
-                // Need to read bytes as follows - first as tag encoding
-                // Once tag encoding is decoded into id/type
-                // Get the value depending on the id/type
-                var decoded_tag = decodeTag(new_s);
-                
-                switch(decoded_tag[0]) {
-                    case 'CLOSE': // Close shouldn't be ever entered - this will notify when Object is closed
-                        console.log('}');
-                                                
-                        break;
-                    case 'OBJECT':
-                        console.log('{');
-
-                        // Loop while the tag does not say close
-                        
-                        break;
-                    case 'INTEGER':
-                        console.log('integer');
-                        var str_int = stringToBinary(buffer[i + 1]);
-                        var int_byte_size = calculateTotalBytes(str_int);
-                        i += 1;
-                        
-                        for(var j = 0; j < int_byte_size; j++) {
-                            var to_add = stringToBinary(buffer[i + j]);
-                            // console.log('adding: ' + to_add);
-                            str_int = str_int.concat(to_add);
-                        }
-                        // console.log(str_int)
-
-                        var int = binaryToVSIE(str_int);
-                        console.log(int);
-
-                        i += int_byte_size;
-
-                        break;
-                    case 'LONG':
-                        console.log('long');
-                        var str_long = stringToBinary(buffer[i + 1]);
-                        var long_byte_size = calculateTotalBytes(str_long);
-                        
-                        i += 1;
-
-                        for(var j = 0; j < long_byte_size; j++) {
-                            var to_add = stringToBinary(buffer[i + j + 1]);
-                            // console.log('adding: ' + to_add);
-                            str_long = str_long.concat(to_add);
-                        }
-
-                        var long = binaryToVSIE(str_long);
-                        console.log(long);
-
-                        i += long_byte_size;
-
-                        break;
-                    case 'STRING':
-                        console.log('string');
-                        var str_len = stringToBinary(buffer[i + 1]);
-                        var l = binaryToVUIE(str_len);
-                        i += 1;
-                        var val = buffer.slice(i + 1, i + l + 1);
-                        console.log(val);
-                        i += l;
-
-                        break;
-                    case 'SINGLE':
-                        console.log('single');
-
-                        var single = '';
-
-                        for(var j = 0; j < 3; j++) {
-                            var to_add = stringToBinary(buffer[i + j + 1]);
-
-                            single = single.concat(to_add);
-                        }
-
-                        console.log(single);
-
-                        i += 3;
-                        break;
-                    case 'DOUBLE':
-                        console.log('double');
-
-                        i += 5;
-                        break;
-                    case 'BLOB':
-                        console.log('blob');
-
-                        var blob_len = stringToBinary(buffer[i + 1]);
-                        i += 1;
-                        var blob_len_num_bytes = calculateTotalBytes(blob_len);
-                        for(var j = 0; j < blob_len_num_bytes; j++) {
-                            var to_add = stringToBinary(buffer[i + j + 1]);
-                            // console.log('adding: ' + to_add);
-                            blob_len = blob_len.concat(to_add);
-                        }
-
-                        var l = binaryToVUIE(blob_len);
-                        console.log(l);
-                        i += blob_len_num_bytes;
-                        var val = buffer.slice(i + 1, i + l + 1);
-                        console.log(val);
-                        i += l;
-
-                        break;
-                }
-
-                console.log('bytes read: ' + i);
-
-                i += 1;
-
-                // Store the type, id, and value somehow which can then be printed to
-                //      human readable form as a way to check if spec is right
-
-                // Process of reading?
-                // Start with header - from that determine what is included in the
-                //      file
-                // Determine if StreamsAtStart (data streams followed by Properties, StreamHeaders, Index, Directory) 
-                // or StreamsAtEnd (StreamHeader, Index, and Directory first followed by chunks of stream logical units, no footer)
+            console.log(i);
+            if(decodeTag(stringToBinary(buffer[i]))[0] == 'OBJECT' && format.includes("PROPERTIES")) {
+                // Properties are encoded before streams
+                readProperties(buffer, i);
             }
 
             console.log('done reading');
@@ -259,20 +325,15 @@ function readORBXFile(f) {
 // Takes a tag and returns the BML type and id
 function decodeTag(tag) {
     var entries = Object.entries(BMLElementType).reverse();
+    var i = binaryToVUIE(tag);
+
     for(const entry of entries) {
         var type = entry[1] & tag;
         if(type === entry[1]) {
-            
-            return [entry[0], tag >> 3];
+            console.log(tag);
+            return [entry[0], i >> 3];
         }
     }
 
     return null;
-}
-
-function readHeader(headerView) {
-    for (var i = 0; i < headerView.length; i++) {
-       console.log(headerView[i]);
-       console.log(decodeTag(headerView[i]));
-    }
 }
