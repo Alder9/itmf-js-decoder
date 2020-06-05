@@ -109,6 +109,13 @@ function testReadORBXFile(f) {
     }
 }
 
+/**
+ * 
+ * @param {*} byte 
+ * @param {*} buffer 
+ * @param {*} filepos 
+ * @return BMLElement or Array of BMLElements if an Object
+ */
 function createBMLElement(byte, buffer, filepos) {
     var num_add_bytes = calculateTotalBytes(byte);
     var all_bytes = byte;
@@ -135,10 +142,27 @@ function createBMLElement(byte, buffer, filepos) {
             break;
         case 'OBJECT':
             console.log('{');
+            var object = []
+            var close = false;
+            filepos += 1;
 
-            // Loop while the tag does not say close
+            while(!close) {
+                var s = stringToBinary(buffer[filepos]);
+                var decoded_s = decodeTag(s);
+
+                if(decoded_s[0] == 'CLOSE') {
+                    close = true;
+                    filepos += 1;
+                    break;
+                }
+
+                var temp = createBMLElement(s, buffer, filepos);
+                temp.bml_elem.display();
+                object.push(temp.bml_elem);
+                filepos = temp.filepos;
+            }
             
-            break;
+            return {bml_elem: object, filepos: filepos};
         case 'INTEGER':
             console.log('integer');
             var str_int = stringToBinary(buffer[filepos + 1]);
@@ -277,15 +301,19 @@ function readFlags(flags) {
 }
 
 function readProperties(buffer, filepos) {
-    var properties = [];
+    var s = stringToBinary(buffer[filepos]);
+    var prop_values = createBMLElement(s, buffer, filepos);
+    console.log(prop_values);
     
-
-    return properties;
+    return {properties: prop_values.bml_elem, filepos: prop_values.filepos};
 }
 
 function readORBXFile(f) {
     if(f) {
         const reader = new FileReader();
+        var properties_read = false;
+
+        ORBXObject = {}
         
         reader.onload = function(e) {
             var contents = e.target.result;
@@ -301,16 +329,41 @@ function readORBXFile(f) {
 
             var header_vals = readHeader(buffer, i);
             var header = header_vals.header;
+            ORBXObject.header = header;
             i = header_vals.filepos;
 
             // Check flags to see which logical units are present
             var format = readFlags(header[2].value);
+            console.log('Flags:');
             console.log(format);
 
-            console.log(i);
+            // console.log(i);
             if(decodeTag(stringToBinary(buffer[i]))[0] == 'OBJECT' && format.includes("PROPERTIES")) {
                 // Properties are encoded before streams
-                readProperties(buffer, i);
+                var prop_values = readProperties(buffer, i);
+                var properties = prop_values.properties;
+                ORBXObject.properties = properties;
+                i = properties.filepos;
+                properties_read = true;
+
+                console.log("Properties: ");
+                for(var j = 0; j < properties.length; j++) {
+                    properties[j].display();
+                }
+            }
+
+            if(format.includes("STREAMSATSTART")) {
+                // If StreamsAtStart read streams
+                console.log(ORBXObject);
+                // Skip reading streams for time being
+                // Check for properties
+                // StreamHeaders
+                // Index
+                // Directory
+                // ITMF Footer
+            } else if(format.includes("STREAMSATEND")) {
+                // If StreamsAtEnd
+
             }
 
             console.log('done reading');
@@ -330,7 +383,7 @@ function decodeTag(tag) {
     for(const entry of entries) {
         var type = entry[1] & tag;
         if(type === entry[1]) {
-            console.log(tag);
+            // console.log(tag);
             return [entry[0], i >> 3];
         }
     }
