@@ -138,32 +138,34 @@ function createBMLElement(byte, buffer, filepos) {
     switch(decoded_tag[0]) {
         case 'CLOSE': // Close shouldn't be ever entered - this will notify when Object is closed
             console.log('NONONONO');
-                                    
+
             break;
         case 'OBJECT':
             console.log('{');
-            var object = []
+            value = []
             var close = false;
             filepos += 1;
 
             while(!close) {
                 var s = stringToBinary(buffer[filepos]);
+                console.log(`${filepos-1}: ${stringToBinary(buffer[filepos - 1])}`);
+
+                console.log(`${filepos}: ${s}`);
                 var decoded_s = decodeTag(s);
 
                 if(decoded_s[0] == 'CLOSE') {
                     console.log('}')
                     close = true;
-                    filepos += 1;
 
                     break;
                 } else {
                     var temp = createBMLElement(s, buffer, filepos);
                     console.log(temp);
-                    object.push(temp.bml_elem);
+                    value.push(temp.bml_elem);
                     filepos = temp.filepos;
                 }
             }
-            return {bml_elem: object, filepos: filepos};
+            break;
         case 'INTEGER':
             console.log('integer');
             var str_int = stringToBinary(buffer[filepos + 1]);
@@ -230,7 +232,6 @@ function createBMLElement(byte, buffer, filepos) {
         case 'DOUBLE':
             console.log('double');
 
-            filepos += 1;
             break;
         case 'BLOB':
             console.log('blob');
@@ -311,6 +312,7 @@ function readProperties(buffer, filepos) {
 
 function readChunks(buffer, filepos) {
     var done = false;
+    chunks = []
     while(!done) {
         console.log(filepos);
         var s = stringToBinary(buffer[filepos]);
@@ -318,13 +320,14 @@ function readChunks(buffer, filepos) {
 
         if(decoded_s[0] != 'OBJECT') {
             var bml_values = createBMLElement(s, buffer, filepos);
+            chunks.push(bml_values.bml_elem);
             console.log(bml_values.bml_elem);
             filepos = bml_values.filepos;
         } else {
             done = true;
         }
     }
-
+    console.log(chunks);
     return filepos;
 }
 
