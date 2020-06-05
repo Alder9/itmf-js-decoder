@@ -127,7 +127,7 @@ function createBMLElement(byte, buffer, filepos) {
         // console.log('adding: ' + to_add);
         all_bytes = all_bytes.concat(to_add);
     }
-
+    console.log(all_bytes);
     filepos += num_add_bytes;
 
     // Need to read bytes as follows - first as tag encoding
@@ -137,7 +137,7 @@ function createBMLElement(byte, buffer, filepos) {
     
     switch(decoded_tag[0]) {
         case 'CLOSE': // Close shouldn't be ever entered - this will notify when Object is closed
-            console.log('}');
+            console.log('NONONONO');
                                     
             break;
         case 'OBJECT':
@@ -154,15 +154,15 @@ function createBMLElement(byte, buffer, filepos) {
                     console.log('}')
                     close = true;
                     filepos += 1;
-                    break;
-                }
 
-                var temp = createBMLElement(s, buffer, filepos);
-                console.log(temp.bml_elem);
-                object.push(temp.bml_elem);
-                filepos = temp.filepos;
+                    break;
+                } else {
+                    var temp = createBMLElement(s, buffer, filepos);
+                    console.log(temp);
+                    object.push(temp.bml_elem);
+                    filepos = temp.filepos;
+                }
             }
-            
             return {bml_elem: object, filepos: filepos};
         case 'INTEGER':
             console.log('integer');
@@ -195,7 +195,7 @@ function createBMLElement(byte, buffer, filepos) {
                 // console.log('adding: ' + to_add);
                 str_long = str_long.concat(to_add);
             }
-
+            console.log(str_long);
             value = binaryToVSIE(str_long);
             console.log(value);
 
@@ -230,7 +230,7 @@ function createBMLElement(byte, buffer, filepos) {
         case 'DOUBLE':
             console.log('double');
 
-            filepos += 5;
+            filepos += 1;
             break;
         case 'BLOB':
             console.log('blob');
@@ -336,6 +336,10 @@ function readStreamHeaders(buffer, filepos) {
     return {streamHeaders: header_values.bml_elem, filepos: header_values.filepos};
 }
 
+function readIndex(buffer, filepos) {
+
+}
+
 function readORBXFile(f) {
     if(f) {
         const reader = new FileReader();
@@ -396,7 +400,7 @@ function readORBXFile(f) {
                 }
 
                 // StreamHeaders
-                console.log(stringToBinary(buffer[i]));
+                // console.log(stringToBinary(buffer[i]));
                 var header_values = readStreamHeaders(buffer, i);
                 ORBXObject.streamHeaders = header_values.streamHeaders;
                 i = header_values.filepos;
