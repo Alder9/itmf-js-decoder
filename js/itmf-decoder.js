@@ -151,13 +151,14 @@ function createBMLElement(byte, buffer, filepos) {
                 var decoded_s = decodeTag(s);
 
                 if(decoded_s[0] == 'CLOSE') {
+                    console.log('}')
                     close = true;
                     filepos += 1;
                     break;
                 }
 
                 var temp = createBMLElement(s, buffer, filepos);
-                temp.bml_elem.display();
+                console.log(temp.bml_elem);
                 object.push(temp.bml_elem);
                 filepos = temp.filepos;
             }
@@ -244,10 +245,10 @@ function createBMLElement(byte, buffer, filepos) {
             }
 
             var l = binaryToVUIE(blob_len);
-            console.log(l);
+            // console.log(l);
             filepos += blob_len_num_bytes;
             value = buffer.slice(filepos + 1, filepos + l + 1);
-            console.log(value);
+            // console.log(value);
             filepos += l;
 
             break;
@@ -308,6 +309,33 @@ function readProperties(buffer, filepos) {
     return {properties: prop_values.bml_elem, filepos: prop_values.filepos};
 }
 
+function readChunks(buffer, filepos) {
+    var done = false;
+    while(!done) {
+        console.log(filepos);
+        var s = stringToBinary(buffer[filepos]);
+        var decoded_s = decodeTag(s);
+
+        if(decoded_s[0] != 'OBJECT') {
+            var bml_values = createBMLElement(s, buffer, filepos);
+            console.log(bml_values.bml_elem);
+            filepos = bml_values.filepos;
+        } else {
+            done = true;
+        }
+    }
+
+    return filepos;
+}
+
+function readStreamHeaders(buffer, filepos) {
+    var s = stringToBinary(buffer[filepos]);
+    var header_values = createBMLElement(s, buffer, filepos);
+    console.log(header_values);
+
+    return {streamHeaders: header_values.bml_elem, filepos: header_values.filepos};
+}
+
 function readORBXFile(f) {
     if(f) {
         const reader = new FileReader();
@@ -343,7 +371,7 @@ function readORBXFile(f) {
                 var prop_values = readProperties(buffer, i);
                 var properties = prop_values.properties;
                 ORBXObject.properties = properties;
-                i = properties.filepos;
+                i = prop_values.filepos;
                 properties_read = true;
 
                 console.log("Properties: ");
@@ -356,8 +384,24 @@ function readORBXFile(f) {
                 // If StreamsAtStart read streams
                 console.log(ORBXObject);
                 // Skip reading streams for time being
+                i = readChunks(buffer, i);
+
                 // Check for properties
+                if(!properties_read) {
+                    var prop_values = readProperties(buffer, i);
+                    var properties = prop_values.properties;
+                    ORBXObject.properties = properties;
+                    i = properties.filepos;
+                    properties_read = true;
+                }
+
                 // StreamHeaders
+                console.log(stringToBinary(buffer[i]));
+                var header_values = readStreamHeaders(buffer, i);
+                ORBXObject.streamHeaders = header_values.streamHeaders;
+                i = header_values.filepos;
+                console.log(ORBXObject);
+                
                 // Index
                 // Directory
                 // ITMF Footer
