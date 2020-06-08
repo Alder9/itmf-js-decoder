@@ -18,10 +18,6 @@ function BMLElement(type, id, value) {
     this.display = BMLElementDisplay;
 }
 
-function ITMFHeader() {
-
-}
-
 const BMLElementType = {
     CLOSE: 0,
     OBJECT: 1,
@@ -141,7 +137,7 @@ function createBMLElement(byte, buffer, filepos) {
 
             break;
         case 'OBJECT':
-            console.log('{');
+            // console.log('{');
             value = []
             var close = false;
             filepos += 1;
@@ -154,7 +150,7 @@ function createBMLElement(byte, buffer, filepos) {
                 var decoded_s = decodeTag(s);
 
                 if(decoded_s[0] == 'CLOSE') {
-                    console.log('}')
+                    // console.log('}')
                     close = true;
 
                     break;
@@ -180,7 +176,7 @@ function createBMLElement(byte, buffer, filepos) {
             // console.log(str_int)
 
             value = binaryToVSIE(str_int);
-            console.log(value);
+            // console.log(value);
 
             filepos += int_byte_size;
 
@@ -199,7 +195,7 @@ function createBMLElement(byte, buffer, filepos) {
             }
             console.log(str_long);
             value = binaryToVSIE(str_long);
-            console.log(value);
+            // console.log(value);
 
             filepos += long_byte_size;
 
@@ -210,12 +206,12 @@ function createBMLElement(byte, buffer, filepos) {
             var l = binaryToVUIE(str_len);
             filepos += 1;
             value = buffer.slice(filepos + 1, filepos + l + 1);
-            console.log(value);
+            // console.log(value);
             filepos += l;
 
             break;
         case 'SINGLE':
-            console.log('single');
+            // console.log('single');
 
             var single = '';
 
@@ -225,13 +221,14 @@ function createBMLElement(byte, buffer, filepos) {
                 single = single.concat(to_add);
             }
 
-            console.log(single);
+            // console.log(single);
 
             filepos += 3;
             break;
         case 'DOUBLE':
             console.log('double');
-
+            
+            
             break;
         case 'BLOB':
             console.log('blob');
@@ -302,14 +299,6 @@ function readFlags(flags) {
     return format_flags;
 }
 
-function readProperties(buffer, filepos) {
-    var s = stringToBinary(buffer[filepos]);
-    var prop_values = createBMLElement(s, buffer, filepos);
-    console.log(prop_values);
-    
-    return {properties: prop_values.bml_elem, filepos: prop_values.filepos};
-}
-
 function readChunks(buffer, filepos) {
     var done = false;
     chunks = []
@@ -331,16 +320,28 @@ function readChunks(buffer, filepos) {
     return filepos;
 }
 
-function readStreamHeaders(buffer, filepos) {
+function readLogicalUnit(buffer, filepos) {
     var s = stringToBinary(buffer[filepos]);
-    var header_values = createBMLElement(s, buffer, filepos);
-    console.log(header_values);
+    var lu_values = createBMLElement(s, buffer, filepos);
+    console.log(lu_values);
 
-    return {streamHeaders: header_values.bml_elem, filepos: header_values.filepos};
+    return {logicalUnit: lu_values.bml_elem, filepos: lu_values.filepos};
 }
 
-function readIndex(buffer, filepos) {
+function readFooter(buffer, filepos) {
+    var offsetBuffer = new ArrayBuffer(4); // 4 byte array buffer
+    var magicBuffer = new ArrayBuffer(4);
+    
+    for(var i = 0; i < 4; i++) {
+        offsetBuffer[i] = buffer.charCodeAt(filepos + i);
+        magicBuffer[i] = buffer.charCodeAt(filepos + i + 4);
+    }
 
+    console.log(offsetBuffer);
+    console.log(magicBuffer);
+
+    // console.log(new DataView(magicBuffer).getUint32(0, true));
+    // var s = stringToBinary(buffer[filepos]);
 }
 
 function readORBXFile(f) {
@@ -375,8 +376,8 @@ function readORBXFile(f) {
             // console.log(i);
             if(decodeTag(stringToBinary(buffer[i]))[0] == 'OBJECT' && format.includes("PROPERTIES")) {
                 // Properties are encoded before streams
-                var prop_values = readProperties(buffer, i);
-                var properties = prop_values.properties;
+                var prop_values = readLogicalUnit(buffer, i);
+                var properties = prop_values.logicalUnit;
                 ORBXObject.properties = properties;
                 i = prop_values.filepos;
                 properties_read = true;
@@ -392,26 +393,39 @@ function readORBXFile(f) {
                 console.log(ORBXObject);
                 // Skip reading streams for time being
                 i = readChunks(buffer, i);
-
+                console.log(`End of chunks pos: ${i}`);
                 // Check for properties
                 if(!properties_read) {
-                    var prop_values = readProperties(buffer, i);
-                    var properties = prop_values.properties;
+                    var prop_values = readLogicalUnit(buffer, i);
+                    var properties = prop_values.logicalUnit;
                     ORBXObject.properties = properties;
                     i = properties.filepos;
                     properties_read = true;
                 }
 
-                // StreamHeaders
+                // StreamHeaders 
                 // console.log(stringToBinary(buffer[i]));
-                var header_values = readStreamHeaders(buffer, i);
-                ORBXObject.streamHeaders = header_values.streamHeaders;
+                var header_values = readLogicalUnit(buffer, i);
+                ORBXObject.streamHeaders = header_values.logicalUnit;
                 i = header_values.filepos;
-                console.log(ORBXObject);
                 
-                // Index
-                // Directory
-                // ITMF Footer
+                // Index - Check flag
+                var index = readLogicalUnit(buffer, i);
+                ORBXObject.index = index.logicalUnit;
+                i = index.filepos;
+
+                // Directory - Check flag
+                var directory = readLogicalUnit(buffer, i);
+                ORBXObject.directory = directory.logicalUnit;
+                i = directory.filepos;
+                
+                console.log(ORBXObject);
+                console.log(i);
+
+                // ITMF Footer 
+                readFooter(buffer, i);
+                console.log('---------');
+
             } else if(format.includes("STREAMSATEND")) {
                 // If StreamsAtEnd
 
@@ -441,3 +455,11 @@ function decodeTag(tag) {
 
     return null;
 }
+
+/**
+ * Questions:
+ *  - Extra data encoded after the Footer, what is that for?
+ *  - Testing material? E.g. different types of ORBX files w different structures
+ *  
+ * 
+ */
