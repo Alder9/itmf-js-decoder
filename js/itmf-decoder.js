@@ -227,8 +227,17 @@ function createBMLElement(byte, buffer, filepos) {
             break;
         case 'DOUBLE':
             console.log('double');
-            
-            
+            var double = '';
+
+            for(var j = 0; j < 5; j++) {
+                var to_add = stringToBinary(buffer[filepos + j + 1]);
+
+                double = double.concat(to_add);
+            }
+
+            console.log(double);
+
+            filepos += 5;
             break;
         case 'BLOB':
             console.log('blob');
@@ -329,19 +338,30 @@ function readLogicalUnit(buffer, filepos) {
 }
 
 function readFooter(buffer, filepos) {
-    var offsetBuffer = new ArrayBuffer(4); // 4 byte array buffer
-    var magicBuffer = new ArrayBuffer(4);
-    
+    footer = {}
+
+    var offsetBuffer = new Array(); // 4 byte array buffer
+    var magicBuffer = new Array();
+
     for(var i = 0; i < 4; i++) {
-        offsetBuffer[i] = buffer.charCodeAt(filepos + i);
-        magicBuffer[i] = buffer.charCodeAt(filepos + i + 4);
+        offsetBuffer.push(buffer.charCodeAt(filepos + i));
+        magicBuffer.push(buffer.charCodeAt(filepos + i + 4));
     }
+    var mb = new Uint8Array(magicBuffer).buffer;
+    var ob = new Uint8Array(offsetBuffer).buffer;
 
-    console.log(offsetBuffer);
-    console.log(magicBuffer);
+    var mdv = new DataView(mb);
+    var odv = new DataView(ob);
 
-    // console.log(new DataView(magicBuffer).getUint32(0, true));
-    // var s = stringToBinary(buffer[filepos]);
+    console.log(odv.getUint32(0, true)); // little endian
+    console.log(mdv.getUint32(0, true)); // little endian
+
+    footer.streamEndOffset = odv.getUint32(0, true);
+    footer.magic = mdv.getUint32(0, true);
+
+    filepos += 8;
+
+    return {footer: footer, filepos: filepos};
 }
 
 function readORBXFile(f) {
@@ -419,12 +439,12 @@ function readORBXFile(f) {
                 ORBXObject.directory = directory.logicalUnit;
                 i = directory.filepos;
                 
-                console.log(ORBXObject);
-                console.log(i);
-
                 // ITMF Footer 
-                readFooter(buffer, i);
+                var footer = readFooter(buffer, i);
+                ORBXObject.footer = footer.footer;
+                i = footer.filepos;
                 console.log('---------');
+                console.log(ORBXObject);
 
             } else if(format.includes("STREAMSATEND")) {
                 // If StreamsAtEnd
@@ -455,11 +475,3 @@ function decodeTag(tag) {
 
     return null;
 }
-
-/**
- * Questions:
- *  - Extra data encoded after the Footer, what is that for?
- *  - Testing material? E.g. different types of ORBX files w different structures
- *  
- * 
- */
