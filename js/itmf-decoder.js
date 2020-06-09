@@ -364,6 +364,9 @@ function readFooter(buffer, filepos) {
     return {footer: footer, filepos: filepos};
 }
 
+// Encrypted logical units?
+// Compressed logical units?
+
 function readORBXFile(f) {
     if(f) {
         const reader = new FileReader();
@@ -415,7 +418,7 @@ function readORBXFile(f) {
                 i = readChunks(buffer, i);
                 console.log(`End of chunks pos: ${i}`);
                 // Check for properties
-                if(!properties_read) {
+                if(!properties_read && format.includes("PROPERTIES")) {
                     var prop_values = readLogicalUnit(buffer, i);
                     var properties = prop_values.logicalUnit;
                     ORBXObject.properties = properties;
@@ -430,15 +433,25 @@ function readORBXFile(f) {
                 i = header_values.filepos;
                 
                 // Index - Check flag
-                var index = readLogicalUnit(buffer, i);
-                ORBXObject.index = index.logicalUnit;
-                i = index.filepos;
+                if(format.includes("INDEX")) {
+                    var index = readLogicalUnit(buffer, i);
+                    ORBXObject.index = index.logicalUnit;
+                    i = index.filepos;
+                }
 
                 // Directory - Check flag
-                var directory = readLogicalUnit(buffer, i);
-                ORBXObject.directory = directory.logicalUnit;
-                i = directory.filepos;
-                
+                if(format.includes("DIRECTORY")) {
+                    var directory = readLogicalUnit(buffer, i);
+                    ORBXObject.directory = directory.logicalUnit;
+                    i = directory.filepos;
+                }
+
+                if(format.includes("SIGNED")) {
+                    var signature = readLogicalUnit(buffer, i);
+                    ORBXObject.signature = signature.logicalUnit;
+                    i = signature.filepos;
+                }
+            
                 // ITMF Footer 
                 var footer = readFooter(buffer, i);
                 ORBXObject.footer = footer.footer;
@@ -446,9 +459,39 @@ function readORBXFile(f) {
                 console.log('---------');
                 console.log(ORBXObject);
 
+                if(ORBXObject.footer.magic != 0x9f5a1104) {
+                    alert('Error reading file!');
+                }
             } else if(format.includes("STREAMSATEND")) {
                 // If StreamsAtEnd
 
+                // StreamHeaders
+                var header_values = readLogicalUnit(buffer, i);
+                ORBXObject.streamHeaders = header_values.logicalUnit;
+                i = header_values.filepos;
+
+                // Index
+                if(format.includes("INDEX")) {
+                    var index = readLogicalUnit(buffer, i);
+                    ORBXObject.index = index.logicalUnit;
+                    i = index.filepos;
+                }
+
+                // Directory
+                if(format.includes("DIRECTORY")) {
+                    var directory = readLogicalUnit(buffer, i);
+                    ORBXObject.directory = directory.logicalUnit;
+                    i = directory.filepos;
+                }
+
+                // Signature
+                if(format.includes("SIGNED")) {
+                    var signature = readLogicalUnit(buffer, i);
+                    ORBXObject.signature = signature.logicalUnit;
+                    i = signature.filepos;
+                }
+
+                // NO FOOTER
             }
 
             console.log('done reading');
