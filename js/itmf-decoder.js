@@ -14,6 +14,10 @@ function appendLinebreak() {
     elem.appendChild(linebreak);
 }
 
+function clearDiv(elementId) {
+    document.getElementById(elementId).innerHTML = '';
+}
+
 function BMLElementDisplay(padding = '') {
     var elem = document.getElementById('orbxInfo');
 
@@ -411,6 +415,7 @@ function displayFooter(footer) {
 // Compressed logical units?
 function readORBXFile(f) {
     if(f) {
+        clearDiv('orbxInfo');
         const reader = new FileReader();
         var properties_read = false;
 
