@@ -22,16 +22,14 @@ function BMLElementDisplay(padding = '') {
         
         elem.appendChild(open);
         appendLinebreak();
-        padding += '   ';
+        padding += '\u00A0';
         for(var i = 0; i < this.value.length; i++) {
 
             this.value[i].display(padding);
         }
 
-        elem.appendChild(document.createTextNode('}'));
-        
+        elem.appendChild(document.createTextNode(`${padding}}`));
         appendLinebreak();
-
     } else {
         var val = `${padding}${this.type}(${this.id}) ${this.value}`;
 
@@ -41,8 +39,6 @@ function BMLElementDisplay(padding = '') {
         elem.appendChild(text);
         appendLinebreak();
     }
-
-    
 }
 
 function BMLElement(type, id, value) {
