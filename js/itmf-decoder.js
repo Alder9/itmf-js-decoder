@@ -6,8 +6,43 @@ fileSelector.addEventListener('change', (event) => {
     // testReadORBXFile(fileList[0]);
 });
 
-function BMLElementDisplay() {
-    console.log(`${this.type}(${this.id}) ${this.value}`);
+function appendLinebreak() {
+    var elem = document.getElementById('orbxInfo');
+
+    var linebreak = document.createElement('br');
+
+    elem.appendChild(linebreak);
+}
+
+function BMLElementDisplay(padding = '') {
+    var elem = document.getElementById('orbxInfo');
+
+    if(this.type == 'OBJECT') {
+        var open = document.createTextNode(`${padding}${this.type}(${this.id}) {`);
+        
+        elem.appendChild(open);
+        appendLinebreak();
+        padding += '   ';
+        for(var i = 0; i < this.value.length; i++) {
+
+            this.value[i].display(padding);
+        }
+
+        elem.appendChild(document.createTextNode('}'));
+        
+        appendLinebreak();
+
+    } else {
+        var val = `${padding}${this.type}(${this.id}) ${this.value}`;
+
+        console.log(val);
+        var text = document.createTextNode(val);
+
+        elem.appendChild(text);
+        appendLinebreak();
+    }
+
+    
 }
 
 function BMLElement(type, id, value) {
@@ -156,7 +191,7 @@ function createBMLElement(byte, buffer, filepos) {
                     break;
                 } else {
                     var temp = createBMLElement(s, buffer, filepos);
-                    console.log(temp);
+                    // console.log(temp);
                     value.push(temp.bml_elem);
                     filepos = temp.filepos;
                 }
@@ -288,10 +323,6 @@ function readHeader(buffer, filepos) {
     filepos = flag_values.filepos;
     header.push(flags);
 
-    for(var i = 0; i < header.length; i++) {
-        header[i].display();
-    }
-
     return {header: header, filepos: filepos};
 }
 
@@ -364,9 +395,24 @@ function readFooter(buffer, filepos) {
     return {footer: footer, filepos: filepos};
 }
 
+function displayFooter(footer) {
+    var elem = document.getElementById('orbxInfo');
+    var foot = document.createTextNode('ITMF FOOTER');
+                    
+    elem.appendChild(foot);
+    appendLinebreak();
+
+    var streamOff = document.createTextNode(`uint32_t ${footer.streamEndOffset}`);
+    var magic = document.createTextNode(`uint32_t 0x${footer.magic.toString(16)}`);
+
+    elem.appendChild(streamOff);
+    appendLinebreak();
+    elem.appendChild(magic);
+    appendLinebreak();
+}
+
 // Encrypted logical units?
 // Compressed logical units?
-
 function readORBXFile(f) {
     if(f) {
         const reader = new FileReader();
@@ -391,6 +437,16 @@ function readORBXFile(f) {
             ORBXObject.header = header;
             i = header_vals.filepos;
 
+            var elem = document.getElementById('orbxInfo');
+            var head = document.createTextNode('ITMF HEADER');
+
+            elem.appendChild(head);
+            appendLinebreak();
+            for(var j = 0; j < ORBXObject.header.length; j++) {
+                ORBXObject.header[j].display();
+            }
+
+            appendLinebreak();
             // Check flags to see which logical units are present
             var format = readFlags(header[2].value);
             console.log('Flags:');
@@ -406,9 +462,12 @@ function readORBXFile(f) {
                 properties_read = true;
 
                 console.log("Properties: ");
-                for(var j = 0; j < properties.length; j++) {
-                    properties[j].display();
-                }
+                var props = document.createTextNode('PROPERTIES');
+                elem.appendChild(props);
+                appendLinebreak();
+                ORBXObject.properties.display();
+
+                appendLinebreak();
             }
 
             if(format.includes("STREAMSATSTART")) {
@@ -424,6 +483,11 @@ function readORBXFile(f) {
                     ORBXObject.properties = properties;
                     i = properties.filepos;
                     properties_read = true;
+
+                    var props = document.createTextNode('PROPERTIES');
+                    elem.appendChild(props);
+                    appendLinebreak();
+                    ORBXObject.properties.display();
                 }
 
                 // StreamHeaders 
@@ -431,19 +495,38 @@ function readORBXFile(f) {
                 var header_values = readLogicalUnit(buffer, i);
                 ORBXObject.streamHeaders = header_values.logicalUnit;
                 i = header_values.filepos;
-                
+                var sh = document.createTextNode('STREAMHEADERS');
+                elem.appendChild(sh);
+                appendLinebreak();
+                ORBXObject.streamHeaders.display();
+                appendLinebreak();
+
                 // Index - Check flag
                 if(format.includes("INDEX")) {
+                    var ind = document.createTextNode('INDEX');
+                    elem.appendChild(ind);
+                    appendLinebreak();
+
                     var index = readLogicalUnit(buffer, i);
                     ORBXObject.index = index.logicalUnit;
                     i = index.filepos;
+
+                    ORBXObject.index.display();
+                    appendLinebreak();
                 }
 
                 // Directory - Check flag
                 if(format.includes("DIRECTORY")) {
+                    var dir = document.createTextNode('DIRECTORIES');
+                    elem.appendChild(dir);
+                    appendLinebreak();
+
                     var directory = readLogicalUnit(buffer, i);
                     ORBXObject.directory = directory.logicalUnit;
                     i = directory.filepos;
+
+                    ORBXObject.directory.display();
+                    appendLinebreak();
                 }
 
                 if(format.includes("SIGNED")) {
@@ -457,10 +540,11 @@ function readORBXFile(f) {
                 ORBXObject.footer = footer.footer;
                 i = footer.filepos;
                 console.log('---------');
-                console.log(ORBXObject);
 
                 if(ORBXObject.footer.magic != 0x9f5a1104) {
                     alert('Error reading file!');
+                } else {
+                    displayFooter(ORBXObject.footer);
                 }
             } else if(format.includes("STREAMSATEND")) {
                 // If StreamsAtEnd
