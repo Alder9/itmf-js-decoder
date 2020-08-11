@@ -1,9 +1,10 @@
+var file;
+
 const fileSelector = document.getElementById('file-selector');
 fileSelector.addEventListener('change', (event) => {
     const fileList = event.target.files;
-    console.log(fileList);
-    readORBXFile(fileList[0]);
-    // testReadORBXFile(fileList[0]);
+    file = readORBXFile(fileList[0]);
+
 });
 
 function appendLinebreak() {
@@ -37,7 +38,6 @@ function BMLElementDisplay(padding = '') {
     } else {
         var val = `${padding}${this.type}(${this.id}) ${this.value}`;
 
-        console.log(val);
         var text = document.createTextNode(val);
 
         elem.appendChild(text);
@@ -45,10 +45,11 @@ function BMLElementDisplay(padding = '') {
     }
 }
 
-function BMLElement(type, id, value) {
+function BMLElement(type, id, value, binary_str) {
     this.type = type; // BMLElementType
     this.id = id;
     this.value = value;
+    this.binary_str = binary_str;
 
     this.display = BMLElementDisplay;
 }
@@ -127,10 +128,8 @@ function testReadORBXFile(f) {
 
         reader.onload = function(e) {
             var buffer = reader.result;
-
-            // console.log(buffer);
             var view = new Uint32Array(buffer, buffer.length - 2, 2);
-            console.log(view);
+            
         }
 
         reader.readAsArrayBuffer(f);
@@ -155,148 +154,122 @@ function createBMLElement(byte, buffer, filepos) {
     // appending any subsequent bytes
     for(var j = 0; j < num_add_bytes; j++) {
         var to_add = stringToBinary(buffer[filepos + j + 1]);
-        // console.log('adding: ' + to_add);
         all_bytes = all_bytes.concat(to_add);
     }
-    console.log(all_bytes);
+    
     filepos += num_add_bytes;
 
     // Need to read bytes as follows - first as tag encoding
     // Once tag encoding is decoded into id/type
     // Get the value depending on the id/type
     var decoded_tag = decodeTag(all_bytes);
-    
+    var binarystr = '';
     switch(decoded_tag[0]) {
         case 'CLOSE': // Close shouldn't be ever entered - this will notify when Object is closed
-            console.log('NONONONO');
-
             break;
         case 'OBJECT':
-            // console.log('{');
             value = []
             var close = false;
             filepos += 1;
 
             while(!close) {
                 var s = stringToBinary(buffer[filepos]);
-                console.log(`${filepos-1}: ${stringToBinary(buffer[filepos - 1])}`);
+                // console.log(`${filepos-1}: ${stringToBinary(buffer[filepos - 1])}`);
 
-                console.log(`${filepos}: ${s}`);
                 var decoded_s = decodeTag(s);
 
                 if(decoded_s[0] == 'CLOSE') {
-                    // console.log('}')
                     close = true;
 
                     break;
                 } else {
                     var temp = createBMLElement(s, buffer, filepos);
-                    // console.log(temp);
                     value.push(temp.bml_elem);
                     filepos = temp.filepos;
                 }
             }
             break;
         case 'INTEGER':
-            console.log('integer');
-            var str_int = stringToBinary(buffer[filepos + 1]);
-            var int_byte_size = calculateTotalBytes(str_int);
+            
+            binarystr = stringToBinary(buffer[filepos + 1]);
+            var int_byte_size = calculateTotalBytes(binarystr);
             filepos += 1;
             
             for(var j = 0; j < int_byte_size; j++) {
                 var to_add = stringToBinary(buffer[filepos + j]);
-                // console.log('adding: ' + to_add);
-                str_int = str_int.concat(to_add);
+                binarystr = binarystr.concat(to_add);
             }
-            // console.log(str_int)
 
-            value = binaryToVSIE(str_int);
-            // console.log(value);
+            value = binaryToVSIE(binarystr);
 
             filepos += int_byte_size;
 
             break;
         case 'LONG':
-            console.log('long');
-            var str_long = stringToBinary(buffer[filepos + 1]);
-            var long_byte_size = calculateTotalBytes(str_long);
+            
+            binarystr = stringToBinary(buffer[filepos + 1]);
+            var long_byte_size = calculateTotalBytes(binarystr);
             
             filepos += 1;
 
             for(var j = 0; j < long_byte_size; j++) {
                 var to_add = stringToBinary(buffer[filepos + j + 1]);
-                // console.log('adding: ' + to_add);
-                str_long = str_long.concat(to_add);
+                binarystr = binarystr.concat(to_add);
             }
-            console.log(str_long);
-            value = binaryToVSIE(str_long);
-            // console.log(value);
-
+            
+            value = binaryToVSIE(binarystr);
+            // console.log(binarystr);
             filepos += long_byte_size;
 
             break;
         case 'STRING':
-            console.log('string');
-            var str_len = stringToBinary(buffer[filepos + 1]);
-            var l = binaryToVUIE(str_len);
+            binarystr = stringToBinary(buffer[filepos + 1]);
+            var l = binaryToVUIE(binarystr);
             filepos += 1;
             value = buffer.slice(filepos + 1, filepos + l + 1);
-            // console.log(value);
             filepos += l;
 
             break;
         case 'SINGLE':
-            // console.log('single');
-
             var single = '';
 
-            for(var j = 0; j < 3; j++) {
+            for(var j = 0; j < 4; j++) {
                 var to_add = stringToBinary(buffer[filepos + j + 1]);
 
                 single = single.concat(to_add);
             }
 
-            // console.log(single);
-
-            filepos += 3;
+            filepos += 4;
             break;
         case 'DOUBLE':
-            console.log('double');
+            console.log(byte)
             var double = '';
-
-            for(var j = 0; j < 5; j++) {
+            for(var j = 0; j < 8; j++) {
                 var to_add = stringToBinary(buffer[filepos + j + 1]);
 
                 double = double.concat(to_add);
             }
-
             console.log(double);
-
-            filepos += 5;
+            filepos += 8;
             break;
         case 'BLOB':
-            console.log('blob');
-
-            var blob_len = stringToBinary(buffer[filepos + 1]);
+            binarystr = stringToBinary(buffer[filepos + 1]);
             filepos += 1;
-            var blob_len_num_bytes = calculateTotalBytes(blob_len);
+            var blob_len_num_bytes = calculateTotalBytes(binarystr);
             for(var j = 0; j < blob_len_num_bytes; j++) {
                 var to_add = stringToBinary(buffer[filepos + j + 1]);
-                // console.log('adding: ' + to_add);
-                blob_len = blob_len.concat(to_add);
+                binarystr = binarystr.concat(to_add);
             }
 
-            var l = binaryToVUIE(blob_len);
-            // console.log(l);
+            var l = binaryToVUIE(binarystr);
             filepos += blob_len_num_bytes;
             value = buffer.slice(filepos + 1, filepos + l + 1);
-            // console.log(value);
             filepos += l;
 
             break;
     }
 
-    var bml_elem = new BMLElement(decoded_tag[0], decoded_tag[1], value);
+    var bml_elem = new BMLElement(decoded_tag[0], decoded_tag[1], value, binarystr);
     filepos += 1;
 
     return {bml_elem: bml_elem, filepos: filepos};
@@ -343,27 +316,25 @@ function readChunks(buffer, filepos) {
     var done = false;
     chunks = []
     while(!done) {
-        console.log(filepos);
         var s = stringToBinary(buffer[filepos]);
         var decoded_s = decodeTag(s);
 
         if(decoded_s[0] != 'OBJECT') {
             var bml_values = createBMLElement(s, buffer, filepos);
             chunks.push(bml_values.bml_elem);
-            console.log(bml_values.bml_elem);
+            
             filepos = bml_values.filepos;
         } else {
             done = true;
         }
     }
-    console.log(chunks);
-    return filepos;
+    console.log(chunks)
+    return {chunks: chunks, filepos: filepos};
 }
 
 function readLogicalUnit(buffer, filepos) {
     var s = stringToBinary(buffer[filepos]);
     var lu_values = createBMLElement(s, buffer, filepos);
-    console.log(lu_values);
 
     return {logicalUnit: lu_values.bml_elem, filepos: lu_values.filepos};
 }
@@ -384,8 +355,8 @@ function readFooter(buffer, filepos) {
     var mdv = new DataView(mb);
     var odv = new DataView(ob);
 
-    console.log(odv.getUint32(0, true)); // little endian
-    console.log(mdv.getUint32(0, true)); // little endian
+    // console.log(odv.getUint32(0, true)); // little endian
+    // console.log(mdv.getUint32(0, true)); // little endian
 
     footer.streamEndOffset = odv.getUint32(0, true);
     footer.magic = mdv.getUint32(0, true);
@@ -428,8 +399,6 @@ function readORBXFile(f) {
             // Reads one byte at a time
             var i = 0;
 
-            console.log('reading ' + buffer.length + ' bytes');
-            
             // Read Header
             var s = stringToBinary(buffer[i]); // first byte
 
@@ -450,10 +419,7 @@ function readORBXFile(f) {
             appendLinebreak();
             // Check flags to see which logical units are present
             var format = readFlags(header[2].value);
-            console.log('Flags:');
-            console.log(format);
-
-            // console.log(i);
+        
             if(decodeTag(stringToBinary(buffer[i]))[0] == 'OBJECT' && format.includes("PROPERTIES")) {
                 // Properties are encoded before streams
                 var prop_values = readLogicalUnit(buffer, i);
@@ -462,7 +428,7 @@ function readORBXFile(f) {
                 i = prop_values.filepos;
                 properties_read = true;
 
-                console.log("Properties: ");
+                
                 var props = document.createTextNode('PROPERTIES');
                 elem.appendChild(props);
                 appendLinebreak();
@@ -473,10 +439,12 @@ function readORBXFile(f) {
 
             if(format.includes("STREAMSATSTART")) {
                 // If StreamsAtStart read streams
-                console.log(ORBXObject);
+                
                 // Skip reading streams for time being
-                i = readChunks(buffer, i);
-                console.log(`End of chunks pos: ${i}`);
+                var chunk_vals = readChunks(buffer, i);
+                i = chunk_vals.filepos;
+                ORBXObject.chunks = chunk_vals.chunks;
+                
                 // Check for properties
                 if(!properties_read && format.includes("PROPERTIES")) {
                     var prop_values = readLogicalUnit(buffer, i);
@@ -540,7 +508,7 @@ function readORBXFile(f) {
                 var footer = readFooter(buffer, i);
                 ORBXObject.footer = footer.footer;
                 i = footer.filepos;
-                console.log('---------');
+                
 
                 if(ORBXObject.footer.magic != 0x9f5a1104) {
                     alert('Error reading file!');
@@ -578,14 +546,14 @@ function readORBXFile(f) {
 
                 // NO FOOTER
             }
-
-            console.log('done reading');
         }
 
         reader.readAsBinaryString(f);
     } else {
         alert("Failed to load file");
     }
+    console.log(ORBXObject);
+    return ORBXObject;
 }
 
 // Takes a tag and returns the BML type and id
@@ -596,7 +564,7 @@ function decodeTag(tag) {
     for(const entry of entries) {
         var type = entry[1] & tag;
         if(type === entry[1]) {
-            // console.log(tag);
+            // 
             return [entry[0], i >> 3];
         }
     }
