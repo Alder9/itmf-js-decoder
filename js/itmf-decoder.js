@@ -23,7 +23,7 @@ function BMLElementDisplay(padding = '') {
     var elem = document.getElementById('orbxInfo');
 
     if(this.type == 'OBJECT') {
-        var open = document.createTextNode(`${padding}${this.type}(${this.id}) {`);
+        var open = document.createTextNode(`${padding}${this.type}(${this.id})`);
         
         elem.appendChild(open);
         appendLinebreak();
@@ -33,7 +33,7 @@ function BMLElementDisplay(padding = '') {
             this.value[i].display(padding);
         }
 
-        elem.appendChild(document.createTextNode(`${padding}}`));
+        elem.appendChild(document.createTextNode(`${padding}`));
         appendLinebreak();
     } else {
         var val = `${padding}${this.type}(${this.id}) ${this.value}`;
@@ -129,7 +129,6 @@ function testReadORBXFile(f) {
         reader.onload = function(e) {
             var buffer = reader.result;
             var view = new Uint32Array(buffer, buffer.length - 2, 2);
-            
         }
 
         reader.readAsArrayBuffer(f);
@@ -148,6 +147,7 @@ function testReadORBXFile(f) {
  */
 function createBMLElement(byte, buffer, filepos) {
     var num_add_bytes = calculateTotalBytes(byte);
+    console.log(num_add_bytes)
     var all_bytes = byte;
     var value;
 
@@ -168,6 +168,7 @@ function createBMLElement(byte, buffer, filepos) {
         case 'CLOSE': // Close shouldn't be ever entered - this will notify when Object is closed
             break;
         case 'OBJECT':
+            console.log("object")
             value = []
             var close = false;
             filepos += 1;
@@ -190,7 +191,6 @@ function createBMLElement(byte, buffer, filepos) {
             }
             break;
         case 'INTEGER':
-            
             binarystr = stringToBinary(buffer[filepos + 1]);
             var int_byte_size = calculateTotalBytes(binarystr);
             filepos += 1;
@@ -206,7 +206,6 @@ function createBMLElement(byte, buffer, filepos) {
 
             break;
         case 'LONG':
-            
             binarystr = stringToBinary(buffer[filepos + 1]);
             var long_byte_size = calculateTotalBytes(binarystr);
             
@@ -232,24 +231,24 @@ function createBMLElement(byte, buffer, filepos) {
             break;
         case 'SINGLE':
             var single = '';
-
+            var tmp = new ArrayBuffer(4);
             for(var j = 0; j < 4; j++) {
-                var to_add = stringToBinary(buffer[filepos + j + 1]);
-
-                single = single.concat(to_add);
+                tmp[j] = buffer.charCodeAt(filepos + j + 1);
             }
+            console.log(new DataView(tmp).getFloat32());
 
             filepos += 4;
             break;
         case 'DOUBLE':
-            console.log(byte)
-            var double = '';
+            // 8 byte arraybuffer
+            var tmp = new ArrayBuffer(8);
             for(var j = 0; j < 8; j++) {
-                var to_add = stringToBinary(buffer[filepos + j + 1]);
-
-                double = double.concat(to_add);
+                tmp[j] = buffer.charCodeAt(filepos + j + 1);
             }
-            console.log(double);
+            console.log(tmp);
+            
+            console.log(new DataView(tmp).getFloat64());
+
             filepos += 8;
             break;
         case 'BLOB':
@@ -262,6 +261,7 @@ function createBMLElement(byte, buffer, filepos) {
             }
 
             var l = binaryToVUIE(binarystr);
+            console.log(`blob length: ${l}`);
             filepos += blob_len_num_bytes;
             value = buffer.slice(filepos + 1, filepos + l + 1);
             filepos += l;
@@ -279,22 +279,29 @@ function readHeader(buffer, filepos) {
     var header = [];
 
     var s = stringToBinary(buffer[filepos]);
+    //console.log(s);
     var ox_values = createBMLElement(s, buffer, filepos);
     var ox = ox_values.bml_elem;
     filepos = ox_values.filepos;
     header.push(ox);
 
+    console.log(header);
+
     s = stringToBinary(buffer[filepos]);
+    console.log(s)
     var version_values = createBMLElement(s, buffer, filepos);
+    console.log(version_values)
     var version = version_values.bml_elem;
     filepos = version_values.filepos;
     header.push(version);
+    console.log(header);
 
     s = stringToBinary(buffer[filepos]);
     var flag_values = createBMLElement(s, buffer, filepos);
     var flags = flag_values.bml_elem;
     filepos = flag_values.filepos;
     header.push(flags);
+    console.log(header);
 
     return {header: header, filepos: filepos};
 }
@@ -328,6 +335,11 @@ function readChunks(buffer, filepos) {
             done = true;
         }
     }
+    // for(var i = 0; i < chunks.length; i++) {
+    //     chunks[i].display();
+    // }
+    appendLinebreak();
+
     console.log(chunks)
     return {chunks: chunks, filepos: filepos};
 }
@@ -400,8 +412,6 @@ function readORBXFile(f) {
             var i = 0;
 
             // Read Header
-            var s = stringToBinary(buffer[i]); // first byte
-
             var header_vals = readHeader(buffer, i);
             var header = header_vals.header;
             ORBXObject.header = header;
@@ -433,24 +443,20 @@ function readORBXFile(f) {
                 elem.appendChild(props);
                 appendLinebreak();
                 ORBXObject.properties.display();
-
-                appendLinebreak();
             }
 
             if(format.includes("STREAMSATSTART")) {
                 // If StreamsAtStart read streams
-                
-                // Skip reading streams for time being
                 var chunk_vals = readChunks(buffer, i);
                 i = chunk_vals.filepos;
-                ORBXObject.chunks = chunk_vals.chunks;
+                // ORBXObject.chunks = chunk_vals.chunks;
                 
                 // Check for properties
                 if(!properties_read && format.includes("PROPERTIES")) {
                     var prop_values = readLogicalUnit(buffer, i);
                     var properties = prop_values.logicalUnit;
                     ORBXObject.properties = properties;
-                    i = properties.filepos;
+                    i = prop_values.filepos;
                     properties_read = true;
 
                     var props = document.createTextNode('PROPERTIES');
@@ -460,7 +466,7 @@ function readORBXFile(f) {
                 }
 
                 // StreamHeaders 
-                // console.log(stringToBinary(buffer[i]));
+                console.log(stringToBinary(buffer[i]));
                 var header_values = readLogicalUnit(buffer, i);
                 ORBXObject.streamHeaders = header_values.logicalUnit;
                 i = header_values.filepos;
@@ -468,10 +474,10 @@ function readORBXFile(f) {
                 elem.appendChild(sh);
                 appendLinebreak();
                 ORBXObject.streamHeaders.display();
-                appendLinebreak();
 
                 // Index - Check flag
                 if(format.includes("INDEX")) {
+                    console.log("index not included");
                     var ind = document.createTextNode('INDEX');
                     elem.appendChild(ind);
                     appendLinebreak();
@@ -481,7 +487,6 @@ function readORBXFile(f) {
                     i = index.filepos;
 
                     ORBXObject.index.display();
-                    appendLinebreak();
                 }
 
                 // Directory - Check flag
@@ -495,7 +500,6 @@ function readORBXFile(f) {
                     i = directory.filepos;
 
                     ORBXObject.directory.display();
-                    appendLinebreak();
                 }
 
                 if(format.includes("SIGNED")) {
@@ -507,6 +511,7 @@ function readORBXFile(f) {
                 // ITMF Footer 
                 var footer = readFooter(buffer, i);
                 ORBXObject.footer = footer.footer;
+                console.log(footer.footer);
                 i = footer.filepos;
                 
 
@@ -564,7 +569,6 @@ function decodeTag(tag) {
     for(const entry of entries) {
         var type = entry[1] & tag;
         if(type === entry[1]) {
-            // 
             return [entry[0], i >> 3];
         }
     }
